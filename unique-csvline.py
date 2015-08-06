@@ -14,9 +14,12 @@ def get_headers(fn):
 
 if __name__ == "__main__":
 
+    recordset = "00d9fcc1-c8e2-4ef6-be64-9994ca6a32c3"
+    #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
     #recordset = "idigbio"
-    #recordset = "00d9fcc1-c8e2-4ef6-be64-9994ca6a32c3"
-    recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
+
+    fn = "data/{0}/occurrence.csv".format(recordset)
+    headers = get_headers(fn)
 
     fields = ["dwc:scientificName",
               "dwc:specificEpithet",
@@ -29,14 +32,12 @@ if __name__ == "__main__":
               "dwc:eventDate",
               "dwc:recordedBy"]
     #fields = ["dwc:occurrenceID"]
+    fields = headers
 
 
     out_dir = "out_{0}".format(recordset)
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-
-    fn = "data/{0}/occurrence.csv".format(recordset)
-    headers = get_headers(fn)
 
     sc = SparkContext(appName="UniqueCSVline")
     csvline = Csvline()
