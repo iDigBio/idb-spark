@@ -1,5 +1,6 @@
 from __future__ import print_function
 import sys
+import unicodecsv
 from pyspark import SparkContext
 from operator import add
 from lib.csvline import Csvline
@@ -12,9 +13,21 @@ def get_headers(fn):
 
 if __name__ == "__main__":
 
-    fields = ["dwc:scientificName", "dwc:verbatimLocality"]
-    #fields = ["dwc:scientificName"]
+    fields = ["dwc:scientificName",
+              "dwc:specificEpithet",
+              "dwc:collectionCode",
+              "dwc:occurrenceID",
+              "dwc:institutionCode",
+              "dwc:genus",
+              "dwc:verbatimLocality",
+              "dwc:catalogNumber",
+              "dwc:eventDate",
+              "dwc:recordedBy"]
 
+
+    #fields = ["dwc:occurrenceID"]
+
+    #fn = "data/idigbio/occurrence.csv"
     fn = "data/0b17c21a-f7e2-4967-bdf8-60cf9b06c721/occurrence.txt"
     headers = get_headers(fn)
 
@@ -30,9 +43,11 @@ if __name__ == "__main__":
         #counts = parsed.map(lambda x: (x[field], 1))
         #sorted = counts.sortByKey()
         totals = counts.reduceByKey(add)
-        totals.saveAsTextFile("out_{0}".format(field.replace(":", "_")))
+        #totals.saveAsTextFile("out_{0}".format(field.replace(":", "_")))
 
-#    output = totals.collect()
-#    with open("unique-csvline.out", "w") as f:
-#        for (word, count) in output:
-#            f.write("{0},{1}\n".format(count, word.encode("utf8")))
+        output = totals.collect()
+        out_fn = "out/unique_{0}.csv".format(field.replace(":", "_"))
+        with open(out_fn, "wb") as f:
+            csvwriter = unicodecsv.writer(f, "excel")
+            for (word, count) in output:
+                csvwriter.writerow([word, count])
