@@ -32,6 +32,7 @@ if __name__ == "__main__":
               "dwc:eventDate",
               "dwc:recordedBy"]
     #fields = ["dwc:occurrenceID"]
+    #fields = ["dwc:waterBody"]
     fields = headers
 
 
@@ -42,7 +43,10 @@ if __name__ == "__main__":
     sc = SparkContext(appName="UniqueCSVline")
     csvline = Csvline()
 
+    # filter removes header line which is going to be unique
     records = sc.textFile(fn)
+    first_line = records.take(1)[0]
+    records = records.filter(lambda line: line != first_line)
     parsed = records.map(lambda x: csvline.parse(x.encode("utf8"), headers) )
     parsed.cache()
 
