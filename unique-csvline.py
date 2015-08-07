@@ -14,9 +14,9 @@ def get_headers(fn):
 
 if __name__ == "__main__":
 
-    recordset = "00d9fcc1-c8e2-4ef6-be64-9994ca6a32c3"
+    #recordset = "00d9fcc1-c8e2-4ef6-be64-9994ca6a32c3"
     #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
-    #recordset = "idigbio"
+    recordset = "idigbio"
 
     fn = "data/{0}/occurrence.csv".format(recordset)
     headers = get_headers(fn)
@@ -51,6 +51,11 @@ if __name__ == "__main__":
     parsed.cache()
 
     for field in fields:
+
+        out_fn = "{0}/unique_{1}.csv".format(out_dir, field.replace(":", "_"))
+        if os.path.exists(out_fn):
+            continue
+
         #counts = records.map(lambda x: (csvline.parse(x.encode("utf8"), headers)[field], 1))
         counts = parsed.map(lambda x: (x[field], 1))
         ####sorted = counts.sortByKey()
@@ -58,7 +63,6 @@ if __name__ == "__main__":
         #####totals.saveAsTextFile("out_{0}".format(field.replace(":", "_")))
 
         output = totals.collect()
-        out_fn = "{0}/unique_{1}.csv".format(out_dir, field.replace(":", "_"))
         with open(out_fn, "wb") as f:
             csvwriter = unicodecsv.writer(f, "excel")
             for (word, count) in output:
