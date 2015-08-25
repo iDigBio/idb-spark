@@ -21,14 +21,19 @@ class Csvline:
         else:
             retval = []
 
-        i = 0
-        for line in r:
-            for value in line:
-                if headers:
-                    retval[ headers[i] ] = value
-                else:
-                    retval.append(value)
-                i += 1
+        try:
+            i = 0
+            for line in r:
+                for value in line:
+                    if headers:
+                        retval[ headers[i] ] = value
+                    else:
+                        retval.append(value)
+                    i += 1
+        except:
+            # assume we're parsing a line 
+            for h in headers:
+                retval[h] = ""
 
         return retval
 
@@ -49,6 +54,7 @@ if __name__ == "__main__":
     headers = get_headers(fn)
 
     fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
+#    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/idigbio_all_2015_08_23/records.raw.csv"
 
     fields = ["dwc:scientificName",
               "dwc:specificEpithet",
@@ -63,7 +69,7 @@ if __name__ == "__main__":
     #fields = ["dwc:occurrenceID"]
     #fields = ["dwc:waterBody"]
     #fields = headers
-
+    #fields = ["dwc:genus"]
 
     out_dir = "out_{0}".format(recordset)
     if not os.path.exists(out_dir):
@@ -89,10 +95,10 @@ if __name__ == "__main__":
         counts = parsed.map(lambda x: (x[field], 1))
         ####sorted = counts.sortByKey()
         totals = counts.reduceByKey(add)
-        totals.saveAsTextFile("hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/plantae/out_{0}".format(field.replace(":", "_")))
+#        totals.saveAsTextFile("hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/idigbio_out/out_{0}".format(field.replace(":", "_")))
 
-#        output = totals.collect()
-#        with open(out_fn, "wb") as f:
-#            csvwriter = unicodecsv.writer(f, "excel")
-#            for (word, count) in output:
-#                csvwriter.writerow([word, count])
+        output = totals.collect()
+        with open(out_fn, "wb") as f:
+            csvwriter = unicodecsv.writer(f, "excel")
+            for (word, count) in output:
+                csvwriter.writerow([word, count])
