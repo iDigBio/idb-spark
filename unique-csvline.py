@@ -16,14 +16,14 @@ def get_headers(fn):
 if __name__ == "__main__":
 
     # small
-    recordset = "00d9fcc1-c8e2-4ef6-be64-9994ca6a32c3"
+    #recordset = "00d9fcc1-c8e2-4ef6-be64-9994ca6a32c3"
     # medium
     #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
     # all
-    #recordset = "idigbio"
+    recordset = "idigbio"
 
     # set to "_raw" to process raw or "" to not
-    raw = "_raw"
+    raw = ""
 
     fn = "data/{0}/occurrence{1}.csv".format(recordset, raw)
     headers = get_headers(fn)
@@ -40,7 +40,7 @@ if __name__ == "__main__":
               "dwc:recordedBy"]
     #fields = ["dwc:occurrenceID"]
     #fields = ["dwc:waterBody"]
-    fields = headers
+    #fields = headers
 
 
     out_dir = "out{0}_{1}".format(raw, recordset)
@@ -70,10 +70,10 @@ if __name__ == "__main__":
         counts = parsed.map(lambda x: (x[field], 1))
         ####sorted = counts.sortByKey()
         totals = counts.reduceByKey(add)
-        #####totals.saveAsTextFile("out_{0}".format(field.replace(":", "_")))
+        totals.saveAsTextFile("out_{0}".format(field.replace(":", "_")))
 
-        output = totals.collect()
-        with open(out_fn, "wb") as f:
-            csvwriter = unicodecsv.writer(f, "excel")
-            for (word, count) in output:
-                csvwriter.writerow([word, count])
+        #output = totals.collect()
+        #with open(out_fn, "wb") as f:
+        #    csvwriter = unicodecsv.writer(f, "excel")
+        #    for (word, count) in output:
+        #        csvwriter.writerow([word, count])
