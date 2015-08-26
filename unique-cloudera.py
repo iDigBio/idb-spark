@@ -10,38 +10,33 @@ from operator import add
 import csv
 import StringIO
 
-class Csvline:
+def parse(str, headers=None):
+    if headers is not None:
+        retval = {}
+    else:
+        retval = []
 
-    def parse(self, str, headers=None):
+    try:
+
         b = StringIO.StringIO(str)
         r = csv.reader(b)
 
-        if headers:
-            retval = {}
-        else:
-            retval = []
-
-        try:
+        for line in r:
             i = 0
-            for line in r:
-                for value in line:
-                    if headers:
-                        retval[ headers[i] ] = value
-                    else:
-                        retval.append(value)
-                    i += 1
-        except:
-            # assume we're parsing a line 
-            for h in headers:
-                retval[h] = ""
+            for value in line:
+                if headers:
+                    retval[ headers[i] ] = value
+                else:
+                    retval.append(value)
+                i += 1
+    except:
+        print("PROBLEM WITH: {0}".format(str))
+        # assume we're parsing a line and not the headers
+        for h in headers:
+            retval[h] = ""
 
-        return retval
+    return retval
 
-
-def get_headers(fn):
-    csvline = Csvline()
-    with open(fn, "r") as f:
-        return csvline.parse(f.readline())
 
 
 if __name__ == "__main__":
@@ -50,11 +45,9 @@ if __name__ == "__main__":
     #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
     recordset = "idigbio"
 
-    fn = "data/{0}/occurrence.csv".format(recordset)
-    headers = get_headers(fn)
 
-    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
-#    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/idigbio_all_2015_08_23/records.raw.csv"
+#    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
+    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
 
     fields = ["dwc:scientificName",
               "dwc:specificEpithet",
@@ -76,13 +69,14 @@ if __name__ == "__main__":
         os.makedirs(out_dir)
 
     sc = SparkContext(appName="UniqueCSVline")
-    csvline = Csvline()
 
-    # filter removes header line which is going to be unique
     records = sc.textFile(fn, 256)
     first_line = records.take(1)[0]
+    headers = parse(first_line)
+
+    # filter removes header line which is going to be unique
     records = records.filter(lambda line: line != first_line)
-    parsed = records.map(lambda x: csvline.parse(x.encode("utf8"), headers) )
+    parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
     parsed.cache()
 
     for field in fields:
