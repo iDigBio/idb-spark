@@ -4,7 +4,6 @@ import sys
 import unicodecsv
 from pyspark import SparkContext
 from operator import add
-#from lib.csvline import Csvline
 
 
 import csv
@@ -52,21 +51,6 @@ if __name__ == "__main__":
 #    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
     fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
 
-#              "dwc:occurrenceID",
-
-    fields = ["dwc:scientificName",
-              "dwc:specificEpithet",
-              "dwc:collectionCode",
-              "dwc:institutionCode",
-              "dwc:genus",
-              "dwc:verbatimLocality",
-              "dwc:catalogNumber",
-              "dwc:eventDate",
-              "dwc:recordedBy"]
-    #fields = ["dwc:occurrenceID"]
-    #fields = ["dwc:waterBody"]
-    #fields = headers
-    #fields = ["dwc:genus"]
 
     out_dir = "out_{0}".format(recordset)
     if not os.path.exists(out_dir):
@@ -78,13 +62,26 @@ if __name__ == "__main__":
     first_line = records.take(1)[0]
     headers = parse(first_line)
 
+    fields = ["dwc:scientificName",
+              "dwc:specificEpithet",
+              "dwc:collectionCode",
+              "dwc:occurrenceID",
+              "dwc:institutionCode",
+              "dwc:genus",
+              "dwc:verbatimLocality",
+              "dwc:catalogNumber",
+              "dwc:eventDate",
+              "dwc:recordedBy"]
+    #fields = ["dwc:occurrenceID"]
+    #fields = ["dwc:waterBody"]
+    #fields = ["dwc:genus"]
+    fields = headers
+
+
     # filter removes header line which is going to be unique
     records = records.filter(lambda line: line != first_line)
     parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
     parsed.cache()
-
-#    parsed.saveAsTextFile("/run/shm/scrap")
-#    exit()
 
     for field in fields:
 
@@ -92,14 +89,18 @@ if __name__ == "__main__":
         if os.path.exists(out_fn):
             continue
 
-        #counts = records.map(lambda x: (csvline.parse(x.encode("utf8"), headers)[field], 1))
         counts = parsed.map(lambda x: (x.get(field, ""), 1))
-        ####sorted = counts.sortByKey()
         totals = counts.reduceByKey(add)
+
 #        totals.saveAsTextFile("hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/idigbio_out/out_{0}".format(field.replace(":", "_")))
 
-        output = totals.collect()
+        # http://apache-spark-user-list.1001560.n3.nabble.com/Iterator-over-RDD-in-PySpark-td11146.html
+        iter = totals._jrdd.toLocalIterator()
+        output = totals._collect_iterator_through_file(iter)
+#        output = totals.collect()
         with open(out_fn, "wb") as f:
             csvwriter = unicodecsv.writer(f, "excel")
             for (word, count) in output:
                 csvwriter.writerow([word, count])
+
+        
