@@ -29,11 +29,14 @@ def parse(str, headers=None):
                 else:
                     retval.append(value)
                 i += 1
-    except:
-        print("PROBLEM WITH: {0}".format(str))
+    except Exception as e:
+        with open("/tmp/rejects", "a") as f:
+            f.write("PROBLEM WITH: {0}\n".format(str))
+
         # assume we're parsing a line and not the headers
         for h in headers:
             retval[h] = ""
+        raise e
 
     return retval
 
@@ -45,9 +48,9 @@ if __name__ == "__main__":
     #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
     recordset = "idigbio"
 
-
+    fn = "data/idigbio_all_2015_08_25/occurrence.csv"
 #    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
-    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
+#    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
 
     fields = ["dwc:scientificName",
               "dwc:specificEpithet",
@@ -62,7 +65,7 @@ if __name__ == "__main__":
     #fields = ["dwc:occurrenceID"]
     #fields = ["dwc:waterBody"]
     #fields = headers
-    #fields = ["dwc:genus"]
+    fields = ["dwc:genus"]
 
     out_dir = "out_{0}".format(recordset)
     if not os.path.exists(out_dir):
@@ -77,7 +80,10 @@ if __name__ == "__main__":
     # filter removes header line which is going to be unique
     records = records.filter(lambda line: line != first_line)
     parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
-    parsed.cache()
+    #parsed.cache()
+
+#    parsed.saveAsTextFile("/run/shm/scrap")
+#    exit()
 
     for field in fields:
 
@@ -86,7 +92,7 @@ if __name__ == "__main__":
             continue
 
         #counts = records.map(lambda x: (csvline.parse(x.encode("utf8"), headers)[field], 1))
-        counts = parsed.map(lambda x: (x[field], 1))
+        counts = parsed.map(lambda x: (x.get(field, ""), 1))
         ####sorted = counts.sortByKey()
         totals = counts.reduceByKey(add)
 #        totals.saveAsTextFile("hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/idigbio_out/out_{0}".format(field.replace(":", "_")))
