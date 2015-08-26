@@ -36,7 +36,7 @@ def parse(str, headers=None):
         # assume we're parsing a line and not the headers
         for h in headers:
             retval[h] = ""
-        raise e
+        #raise e
 
     return retval
 
@@ -48,14 +48,15 @@ if __name__ == "__main__":
     #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
     recordset = "idigbio"
 
-    fn = "data/idigbio_all_2015_08_25/occurrence.csv"
+#    fn = "data/idigbio_all_2015_08_25/occurrence.csv"
 #    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
-#    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
+    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
+
+#              "dwc:occurrenceID",
 
     fields = ["dwc:scientificName",
               "dwc:specificEpithet",
               "dwc:collectionCode",
-              "dwc:occurrenceID",
               "dwc:institutionCode",
               "dwc:genus",
               "dwc:verbatimLocality",
@@ -65,7 +66,7 @@ if __name__ == "__main__":
     #fields = ["dwc:occurrenceID"]
     #fields = ["dwc:waterBody"]
     #fields = headers
-    fields = ["dwc:genus"]
+    #fields = ["dwc:genus"]
 
     out_dir = "out_{0}".format(recordset)
     if not os.path.exists(out_dir):
@@ -73,14 +74,14 @@ if __name__ == "__main__":
 
     sc = SparkContext(appName="UniqueCSVline")
 
-    records = sc.textFile(fn, 256)
+    records = sc.textFile(fn)
     first_line = records.take(1)[0]
     headers = parse(first_line)
 
     # filter removes header line which is going to be unique
     records = records.filter(lambda line: line != first_line)
     parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
-    #parsed.cache()
+    parsed.cache()
 
 #    parsed.saveAsTextFile("/run/shm/scrap")
 #    exit()
