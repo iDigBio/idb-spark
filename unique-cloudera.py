@@ -1,10 +1,10 @@
 from __future__ import print_function
 import os
 import sys
+import re
 import unicodecsv
 from pyspark import SparkContext
 from operator import add
-#from lib.csvline import Csvline
 
 
 import csv
@@ -36,7 +36,7 @@ def parse(str, headers=None):
         # assume we're parsing a line and not the headers
         for h in headers:
             retval[h] = ""
-        raise e
+        #raise e
 
     return retval
 
@@ -48,9 +48,20 @@ if __name__ == "__main__":
     #recordset = "0b17c21a-f7e2-4967-bdf8-60cf9b06c721"
     recordset = "idigbio"
 
-    fn = "data/idigbio_all_2015_08_25/occurrence.csv"
+#    fn = "data/idigbio_all_2015_08_25/occurrence.csv"
 #    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
-#    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
+    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence_raw.csv"
+
+
+    out_dir = "out_{0}".format(recordset)
+    if not os.path.exists(out_dir):
+        os.makedirs(out_dir)
+
+    sc = SparkContext(appName="UniqueCSVline")
+
+    records = sc.textFile(fn)
+    first_line = records.take(1)[0]
+    headers = parse(first_line)
 
     fields = ["dwc:scientificName",
               "dwc:specificEpithet",
@@ -64,41 +75,36 @@ if __name__ == "__main__":
               "dwc:recordedBy"]
     #fields = ["dwc:occurrenceID"]
     #fields = ["dwc:waterBody"]
-    #fields = headers
-    fields = ["dwc:genus"]
+    #fields = ["dwc:genus"]
+    fields = headers
 
-    out_dir = "out_{0}".format(recordset)
-    if not os.path.exists(out_dir):
-        os.makedirs(out_dir)
-
-    sc = SparkContext(appName="UniqueCSVline")
-
-    records = sc.textFile(fn, 256)
-    first_line = records.take(1)[0]
-    headers = parse(first_line)
 
     # filter removes header line which is going to be unique
     records = records.filter(lambda line: line != first_line)
     parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
-    #parsed.cache()
+    parsed.cache()
 
-#    parsed.saveAsTextFile("/run/shm/scrap")
-#    exit()
-
+    # most fields have ":", some are URLs too in the raw data, make them usable
+    # as a file name. 
+    p = re.compile('[\W_]+')
     for field in fields:
 
-        out_fn = "{0}/unique_{1}.csv".format(out_dir, field.replace(":", "_"))
+        out_fn = "{0}/unique_{1}.csv".format(out_dir, p.sub("_", field))
         if os.path.exists(out_fn):
             continue
 
-        #counts = records.map(lambda x: (csvline.parse(x.encode("utf8"), headers)[field], 1))
         counts = parsed.map(lambda x: (x.get(field, ""), 1))
-        ####sorted = counts.sortByKey()
         totals = counts.reduceByKey(add)
+
 #        totals.saveAsTextFile("hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/idigbio_out/out_{0}".format(field.replace(":", "_")))
 
-        output = totals.collect()
+        # http://apache-spark-user-list.1001560.n3.nabble.com/Iterator-over-RDD-in-PySpark-td11146.html
+        iter = totals._jrdd.toLocalIterator()
+        output = totals._collect_iterator_through_file(iter)
+#        output = totals.collect()
         with open(out_fn, "wb") as f:
             csvwriter = unicodecsv.writer(f, "excel")
             for (word, count) in output:
                 csvwriter.writerow([word, count])
+
+        

@@ -1,0 +1,4 @@
+#!/bin/bash
+
+export TOMCAT_OPTS="-Dlog4j.warn"
+time spark-submit --executor-cores 5 --num-executors 18 --executor-memory 9G --driver-memory 12G  unique-cloudera.py
