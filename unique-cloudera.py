@@ -1,6 +1,7 @@
 from __future__ import print_function
 import os
 import sys
+import re
 import unicodecsv
 from pyspark import SparkContext
 from operator import add
@@ -49,7 +50,7 @@ if __name__ == "__main__":
 
 #    fn = "data/idigbio_all_2015_08_25/occurrence.csv"
 #    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/admin/idb_all_20150622/occurrence.csv"
-    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence.csv"
+    fn = "hdfs://cloudera0.acis.ufl.edu:8020/user/mcollins/occurrence_raw.csv"
 
 
     out_dir = "out_{0}".format(recordset)
@@ -83,9 +84,12 @@ if __name__ == "__main__":
     parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
     parsed.cache()
 
+    # most fields have ":", some are URLs too in the raw data, make them usable
+    # as a file name. 
+    p = re.compile('[\W_]+')
     for field in fields:
 
-        out_fn = "{0}/unique_{1}.csv".format(out_dir, field.replace(":", "_"))
+        out_fn = "{0}/unique_{1}.csv".format(out_dir, p.sub("_", field))
         if os.path.exists(out_fn):
             continue
 
