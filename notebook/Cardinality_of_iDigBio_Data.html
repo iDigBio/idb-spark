@@ -177,7 +177,7 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h1 id="A-look-at-unique-values-in-iDigBio-using-Apache-Spark">A look at unique values in iDigBio using Apache Spark<a class="anchor-link" href="#A-look-at-unique-values-in-iDigBio-using-Apache-Spark">&#182;</a></h1>
+<h1 id="Exploring-unique-values-in-iDigBio-using-Apache-Spark">Exploring unique values in iDigBio using Apache Spark<a class="anchor-link" href="#Exploring-unique-values-in-iDigBio-using-Apache-Spark">&#182;</a></h1>
 </div>
 </div>
 </div>
@@ -285,27 +285,28 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>iDigBio currently has over 260 data fields. Most are described by the Darwin Core and Audobon Core standards, some are unique to a particular provider's data use, and a handfull are used internally by iDigBio. One interesting question that comes up often is "What are the unique values in a field?"</p>
-<p>As it turns out, that is a computationally expensive question to answer for a data set with 45 million reccords. Considering the dwc:country field, your first though might be to write a SQL query like:</p>
+<p>Data exploration for large datasets is always challenging. Often you are left with deciding between subsetting the dataset (randomly or on some facet), making slow progress waiting for results just to find that something needs to be fixed, or optimizing code for performance when you don't even know if the result is going to be interesting. Having a high-performance system capable of ad-hoc investigation has always been difficult and/or expensive.</p>
+<p>iDigBio currently has over 45 million records with more than 200 data fields. Most are described by the <a href="http://rs.tdwg.org/dwc/">Darwin Core</a> and <a href="http://terms.tdwg.org/wiki/Audubon_Core">Audubon Core</a> standards, some are unique to a particular provider's data use, and a handful are used internally by iDigBio. One question that comes up often is "What are the unique values in a field?"</p>
+<p>As it turns out, that is a computationally expensive question to answer for a data set with 45 million records. Considering the <a href="http://rs.tdwg.org/dwc/terms/#country">dwc:country</a> field, your first thought might be to write a SQL query like:</p>
 
 <pre><code>SELECT country, count(*) FROM all_idigbio GROUP BY country;
 
 </code></pre>
-<p>iDigBio's data flexability and performance comes from storing provided data as PostgreSQL JSON data types. In such a schema, there is no county column to be indexed and grouped by. In our testing, an analogous query on the JSON column just never returns. For a searchable store, we use Elastic Search so a query that might work there could look like:</p>
-<p>Unfortunately, that too performs terribly as Elastic Search's indexes are tuned for returning the most common occurences and not exhaustive lists. (See our "top" API endpoints for an example.)</p>
-<p>Another option might be to get a CSV copy of iDigBio (which is around 30 GB uncompressed) and write some code in Python or another language to iterate through lines and keep track of unique values. (estimate on lines/second from Alex)</p>
+<p>iDigBio's data flexibility and per-record performance comes from storing provided data as PostgreSQL JSON data types. In such a schema, there is no county column to be indexed and grouped by. In our testing, an analogous query on the JSON column just never returns. For a searchable store, we use Elastic Search which unfortunately also performs terribly at this kind of query. Elastic Search's indexes are tuned for returning the most common occurrences and not exhaustive lists. (See our <a href="https://github.com/iDigBio/idigbio-search-api/wiki#summary">top API endpoints</a> for an example.)</p>
+<p>Another option might be to get a CSV copy of iDigBio (which is around 32 GB) and write some code in Python or another language to iterate through lines and keep track of unique values. In our experience even with multi-threading the reading of the file the best we can do is about <strong>(estimate on lines/second from Alex)</strong> which translates to about <strong>X</strong> minutes to run something on the whole file.</p>
 <p>So what to do?</p>
-<h2 id="Apache-Spark">Apache Spark<a class="anchor-link" href="#Apache-Spark">&#182;</a></h2><p>If you have looked in to the big data analytics eccosystem, you might have come across Apache Hadoop. Traditionally, Hadoop has been hard: hard to install, hard to maintain, and hard to write code for. But the computation pattern that Hadoop impliments, refered to map-reduce, is a great pattern for doing computations over large datasets. Hadoop was often the best solution for working with large datasets.</p>
-<p>In the last two years a newer implimentation of the map-reduce model has been open sourced: Apache Spark. Spark is much easier to use than Hadoop and in most cases performs faster. Details about Spark and about the map-reduce computation pattern are (here).</p>
+<h2 id="Apache-Spark">Apache Spark<a class="anchor-link" href="#Apache-Spark">&#182;</a></h2><p>If you have looked in to the big data analytics ecosystem in the past few years, you might have come across <a href="https://hadoop.apache.org/">Apache Hadoop</a>. Traditionally Hadoop has been hard: hard to install, hard to maintain, and hard to write code for. But the computation pattern that Hadoop implements, referred to as <a href="https://en.wikipedia.org/wiki/MapReduce">map-reduce</a>, is a great pattern for doing computations over very large datasets. Hadoop was often the best solution for working with large datasets.</p>
+<p>In the last two years a new computation framework has been open sourced: <a href="http://spark.apache.org/">Apache Spark</a> and is <a href="https://www.google.com/trends/explore#q=apache%20spark">growing in popularity</a>. Spark is much easier to use than Hadoop and in most cases performs faster. It can perform map and reduce operations similar to Hadoop (though the implementation is very different) which allows for a convenient and flexible way to express complex operations.</p>
 <p>Three easy parts about how Spark works are:</p>
 <ol>
 <li>It is happy to use text files for input</li>
 <li>You don't need to write special code to make your analysis happen in parallel</li>
 <li>The same code can be run on one local machine or a whole cluster of machines</li>
 </ol>
-<p>This means we can get close to the convenince of the Python and CSV option above and also run it on either a local development machine or a whole compute cluster. All we need is a running install of Spark and a few lines of Python. (Spark also has libraries for Scala and R if you prefer those languages.)</p>
-<p>We wrote a Python script to read in both the raw and as-served occurrence CSV files that are in the Darwin Core Archive of all iDigBio data that can be downloaded from our full record set exports directory. For each field, the script produces a CSV file with all of the unique values in that field and the number of reccords that had that value.</p>
-<p>An abreviated excerpt from the script showing the core Spark operations is below.</p>
+<p>This means we can get close to the convenience of the Python and CSV option above and also run it in parallel on either a local development machine or a whole compute cluster. All we need is a running install of Spark and a few lines of Python. (Spark also has libraries for Scala and R if you prefer those languages.)</p>
+<p>During the iDigBio <a href="https://github.com/idigbio-api-hackathon/HackathonCentral/wiki">API Hackathon</a>, Jorrit Poelen put together <a href="https://github.com/idigbio-api-hackathon/idigbio-spark">some test code</a> to join iDigBio records to <a href="http://gni.globalnames.org/">Global Names Index</a> names. Based on this trial, we decided to invest more into Spark.</p>
+<p>To try Spark out on a larger scale, we built a 6-node, 96 thread Spark cluster. This is a test setup based on <a href="http://www.cloudera.com/content/cloudera/en/home.html">Cloudera's</a> bundle of Spark and other Apache tools. We then wrote a Python script to read in both the raw and as-served occurrence CSV files that are in the <a href="http://rs.tdwg.org/dwc/terms/guides/text/index.htm">Darwin Core Archive</a> of all iDigBio data that can be downloaded from our <a href="http://s.idigbio.org/idigbio-static-downloads?max-keys=10000">full record set exports site</a>. For each field, the script produces a CSV file with all of the unique values in that field and the number of records that had that value.</p>
+<p>An abbreviated excerpt from the script showing the core Spark operations is below.</p>
 
 </div>
 </div>
@@ -323,7 +324,7 @@ sc = SparkContext(appName="UniqueCSVline")
 # of values for each record from the CSV of all iDigBio data and cache the 
 # RDD to memory
 records = sc.textFile(fn)
-parsed = records.map(lambda x: csvline.parse(x.encode("utf8"), headers) )
+parsed = records.map(lambda x: parse(x.encode("utf8"), headers) )
 parsed.cache()
 
 # For each field we want the unique values of, apply the map-reduce strategy
@@ -348,9 +349,9 @@ for field in fields:
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>This still takes a while to run since it loops over each field. To do the 30 GB data set containing all data as stored in Elastic Search and served in the portal, it loops about 75 times in a little over 2 hours. For the raw data, there are over 260 fields and that takes closer to 8 hours. Much of that time, perhaps as much as 20%, is the inefficient but convenient way we chose to write the results to CSV.</p>
-<h2 id="Analyzing-the-output">Analyzing the output<a class="anchor-link" href="#Analyzing-the-output">&#182;</a></h2><p>We made Python Pandas data frames by importing those text files. For some initial analysis we wanted to look at how many unique values there were, the cardinality, of each of the fields in the indexed data. Not all the fields were interesing. Many were provided by only one collection, some fields are designed to be unique, etc. So we trimmed off fields that where more than 95% of the records had unique values and fields that had fewer than 100 unique values.</p>
-<p>The result is a bar graph of how many unique values are present in iDigBio for about 55 fields:</p>
+<p>This still takes a while to run since it loops over each field. To do the 32 GB data set containing all data as indexed in Elastic Search and served in the portal, it loops about 75 times in a little over 2 hours with translates to about 750,000 records per second. For the raw data as originally provided to us, there are over 200 fields and that takes closer to 8 hours. Much of that time, perhaps as much as 25%, is the inefficient but convenient way we chose to write the results to CSV. Our code is no where near optimal and this is just a test cluster. Spark scales really well and we have about 275 servers in the ACIS machine room.</p>
+<h2 id="Analyzing-the-output">Analyzing the output<a class="anchor-link" href="#Analyzing-the-output">&#182;</a></h2><p>We made Python <a href="http://pandas.pydata.org/">Pandas</a> data frames by importing those text files into this <a href="http://ipython.org/notebook.html">iPython notebook</a>. For some initial analysis we wanted to look at how many unique values there were, the cardinality, of each of the fields in the indexed data. Not all the fields were interesting. Many were provided by only one collection, some fields are designed to be unique, etc. So we trimmed off fields that where more than 95% of the records had unique values and fields that had fewer than 100 unique values.</p>
+<p>The result is a bar graph of how many unique values are present in iDigBio for about 55 of the indexed fields:</p>
 
 </div>
 </div>
@@ -410,7 +411,7 @@ for field in fields:
 <span class="n">p</span> <span class="o">=</span> <span class="n">plot_bar</span><span class="p">(</span><span class="n">cardinalities</span><span class="p">,</span> <span class="s">&quot;card&quot;</span><span class="p">,</span>
              <span class="s">&quot;Cardinality of Fields in iDigBio&quot;</span><span class="p">,</span>
              <span class="s">&quot;Field Name&quot;</span><span class="p">,</span>
-             <span class="s">&quot;Log10 Unique Values in Field&quot;</span><span class="p">,</span>
+             <span class="s">&quot;Unique Values in Field (log scale)&quot;</span><span class="p">,</span>
              <span class="n">log</span><span class="o">=</span><span class="bp">True</span><span class="p">)</span>
 <span class="k">print</span> <span class="n">p</span>
 </pre></div>
@@ -1610,11 +1611,12 @@ IlLEf3wJ521YVCUnAAAAAElFTkSuQmCC
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>The most interesting thing to notice is that dwc:occurenceID and dwc:catalogNumber were not more than 95% unique. The dwc_occurrenceID bar is a touch over 40 million (note the log scale) and there are 44 million records in this data dump. We're planning a deeper look at things that are used as identifiers in the future.</p>
-<p>Some other highly unique fields were dwc:scientificName and dwc:recordedBy. There might be a lot of room for correction in these fields or this might reflect how increadibly diverse the collections are in iDigBio.</p>
-<p>In addition to the cardinality, we can also look at the frequency which each value occurs within a field. And to look a little at correction efficiency, we can look at the frequency distributions of values both before and after data goes through iDigBio's data normalization efforts.</p>
-<p>Below are graphs showing the cumulation of records over each unique value for a given field. The unique values along the x-axis are sorted from least common to most common to convey how the frequency of values changes.</p>
-<p>Note that the actual values are not shown on the x-axis, there isn't room. The numbers on the x-axis are an increasing integer but you can tell how many unique values there are in a field from it. Also note that blank values are not considered on the y-axis.</p>
+<p>The most interesting thing to notice is that <a href="http://rs.tdwg.org/dwc/terms/#occurrenceID">dwc:occurenceID</a> and <a href="http://rs.tdwg.org/dwc/terms/#catalogNumber">dwc:catalogNumber</a> were not more than 95% unique. The dwc:occurrenceID bar is a touch over 40 million (note the log scale) and there are 45 million records in this data dump. We're planning a deeper look at things that are used as identifiers in the future.</p>
+<p>Some other highly unique fields were <a href="http://rs.tdwg.org/dwc/terms/#scientificName">dwc:scientificName</a> and <a href="http://rs.tdwg.org/dwc/terms/#recordedBy">dwc:recordedBy</a>. There is probably a lot of room for correction in these fields since this graph indicates there are over 1 million unique scientific names and collector names in iDigBio which seems high given that we have a small fraction of the total museum specimens in the world.</p>
+<h2 id="Comparing-raw-and-cleaned-data-using-frequency">Comparing raw and cleaned data using frequency<a class="anchor-link" href="#Comparing-raw-and-cleaned-data-using-frequency">&#182;</a></h2><p>In addition to the cardinality, we can also look at the frequency with which each value occurs within a field. And to look a little at our cleaning efficiency, we can look at the frequency distributions of values both before and after data goes through iDigBio's data cleaning efforts.</p>
+<p>(An aside about iDigBio's cleaning: From the raw data, we try to standardize values before we put data in our searchable index. The reason is that when people are searching, it is best to guide them to using a canonical value like "united states" instead of having everyone construct something like "us or usa or united s. or...". We colloquially call this "cleaned" but really it is our best guess as to the intention of the provider. We do not change the raw data provided to us. We <a href="https://github.com/iDigBio/idigbio-search-api/wiki/Data-Quality-Flags">flag</a> these changes in our portal and data api so you can see what we've done: <a href="http://portal.idigbio.org/portal/records/dd01dd35-ff49-4a7f-b445-851a918096b9">http://portal.idigbio.org/portal/records/dd01dd35-ff49-4a7f-b445-851a918096b9</a>)</p>
+<p>Below are graphs showing the cumulation of records over each unique value for a given field. The unique values along the x-axis are sorted from least common to most common to convey how rapidly the frequency of values changes.</p>
+<p>Note that the actual values are not shown on the x-axis, there isn't room. The numbers on the x-axis are an increasing integer but you can tell how many unique values there are in a field from it. Also note that blank values in fields are not considered on the y-axis.</p>
 <p>Here's the graph of dwc:country:</p>
 
 </div>
@@ -2204,7 +2206,7 @@ Aen/Ay8yX0EjelOFAAAAAElFTkSuQmCC
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>This seems mostly intuitive. There are a lot of non-standard values in this field (there are only about 200 countries). You can see a slight knee where there line becomes vertical at the most frequent value: "US". When the field is standardized to ISO country codes, the number of unique values drops significantly as multiple representations of the same data disappear. There's still work to be done but we have a good idea of where we want to end up. This is a good graph to keep in mind when trying to "just find the records in country X".</p>
+<p>This seems mostly intuitive. There are a lot of non-standard values in this field (there are only about 200 countries). You can see a slight knee where there line becomes vertical at the most frequent value: "united states". When the field is cleaned up, the number of unique values drops significantly as multiple representations of the same data disappear. There's still work to be done but we have a good idea of where we want to end up. This is a good graph to keep in mind when you are trying to "just find the records in country X".</p>
 
 </div>
 </div>
@@ -2754,7 +2756,7 @@ NNicEhEREZHTYHNKRERERE7j/wCjI0xrOj9vRwAAAABJRU5ErkJggg==
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>With the dwc:order field, things are a little different. Much of the data in iDigBio does not have higher taxonomy filled in so the raw data has fewer unique orders. That actually adds unique values to the field and populates records. You can see the corrected curve ends at a higher cumulative number of records. However, there is just so much messy and unknown data that corrections still shift the curve to the left. (When running some test records sets through this notebook, I found some where the corrected curve was to right indicating that we were adding more data than the provider was sending us.)</p>
+<p>With the <a href="http://rs.tdwg.org/dwc/terms/#order">dwc:order</a> field, things are a little different. Much of the data in iDigBio does not have higher taxonomy filled in so the raw data has fewer unique orders. Our standardization actually adds unique values to the field by populating records from lookups in <a href="http://www.gbif.org/dataset/d7dddbf4-2cf0-4f39-9b2a-bb099caae36c">GBIF's backbone taxonomy</a>. You can see the corrected curve ends at a higher cumulative number of records. However, even though we're adding data, the cleaned curve shows fewer unique values because we're adding in valid orders that likely already exist in the dataset and getting rid of non-standard orders. When running some test records sets through this notebook, we even found some where the corrected curve was to right of the raw curve indicating that we were adding more orders than that specific provider was sending us.</p>
 
 </div>
 </div>
@@ -3361,7 +3363,7 @@ RjoyM9g+0wAAAABJRU5ErkJggg==
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Here is the dwc:catalogNumber field. If catalog number was globally unique this would be a line with a slope of 1. Of course, they're not but the lower section of the line does show that there are a lot of unique catalog numbers out there. Then you can see some knees and segments with slope 2, 3, etc. The big spike at the end is really interesting and we'll be looking at that soon. What few thousand values of dwc:catalogNumber are responsible for nearly 20 million records?</p>
+<p>Here is the dwc:catalogNumber field. If catalog number was globally unique this would be a line with a slope of 1. Of course, they're not but the lower section of the line does show that there are a lot of unique catalog numbers out there. Then you can see some knees and segments with slope 2, 3, etc. The big spike at the end is really interesting and we'll be looking at that soon. What few hundred thousand values of dwc:catalogNumber are responsible for nearly 20 million records? Can you answer this question using the <a href="http://search.idigbio.org/v2/summary/top/records/?top_fields=[%22catalognumber%22]&count=1000">iDigBio API</a>?</p>
 <p>We don't clean this field so there's no change between raw and indexed.</p>
 
 </div>
@@ -3990,8 +3992,8 @@ oDDAEhEREZFBYYAlIiIiIoPCAEtEREREBoUBloiIiIgMyv8DoabfDk2e7wEAAAAASUVORK5CYII=
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p>Verbatim locality shows some similar trends with the lower part of the curve being several line segments clearly showing values that appear exactly once, twice, and three times.</p>
-<p>What is interesting about this graph is that we don't clean locality strings. All we do is lowercase them in the index. The clean line shows fewer unique values simply because of the number of locality strings that differ by case only.</p>
+<p>Locality shows some similar trends with the lower part of the curve being several line segments clearly showing values that appear exactly once, twice, and three times.</p>
+<p>What is interesting about this graph is that we don't clean locality strings. All we do is lowercase them in the index. The cleaned line shows fewer unique values simply because of the number of locality strings that differ by case only.</p>
 
 </div>
 </div>
@@ -4001,8 +4003,8 @@ oDDAEhEREZFBYYAlIiIiIoPCAEtEREREBoUBloiIiIgMyv8DoabfDk2e7wEAAAAASUVORK5CYII=
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<h2 id="Next-steps">Next steps<a class="anchor-link" href="#Next-steps">&#182;</a></h2><p>We're working on exposing our Spark cluster based on Cloudera publicly so you don't have to transfer 30+ GB text files and manage Java memory settings to run iDigBio though your own Spark code. If that is something that interests you, send an email to [idigbio@idigbio.org] or join our <a href="http://lists.ufl.edu/cgi-bin/wa?A0=IDIGBIO-API-USERS-L">API mailing list</a> where we announce programming interfaces.</p>
-<p>Spark isn't difficult to get started with yourself. Installation of a stand-alone setup requires Java and any of the <a href="http://spark.apache.org/downloads.html">pre-build downloads</a> extracted somewhere. (You don't need to worry about Hadoop version if you're developing locally.) The <a href="http://spark.apache.org/docs/latest/quick-start.html">official quickstart</a> has examples in Scala and Python.</p>
+<h2 id="Next-steps">Next steps<a class="anchor-link" href="#Next-steps">&#182;</a></h2><p>We're working on exposing our Spark cluster based on publicly so you don't have to transfer 30+ GB text files and manage Java memory settings to run iDigBio though your own Spark code. If that is something that interests you, send an email to [idigbio@idigbio.org] or join our <a href="http://lists.ufl.edu/cgi-bin/wa?A0=IDIGBIO-API-USERS-L">API mailing list</a> where we announce programming interfaces.</p>
+<p>Spark isn't difficult to get started with yourself. Installation of a stand-alone setup requires <a href="http://www.oracle.com/technetwork/java/javase/downloads/jdk8-downloads-2133151.html">Java</a> and any of the <a href="http://spark.apache.org/downloads.html">pre-build downloads</a> extracted somewhere. (You don't need to worry about Hadoop version if you're developing locally.) The <a href="http://spark.apache.org/docs/latest/quick-start.html">official quickstart</a> has examples in Scala and Python.</p>
 
 </div>
 </div>
