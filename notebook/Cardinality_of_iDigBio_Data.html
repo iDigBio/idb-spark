@@ -186,7 +186,7 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<p><a href="mcollins@acis.ufl.edu">Matthew Collins</a> and <a href="godfoder@acis.ufl.edu">Alex Thompson</a></p>
+<p><a href="mailto:mcollins@acis.ufl.edu">Matthew Collins</a> and <a href="mailto:godfoder@acis.ufl.edu">Alex Thompson</a></p>
 
 </div>
 </div>
@@ -303,7 +303,7 @@ div#notebook {
 FROM all_idigbio GROUP BY country;
 
 </code></pre>
-<p>iDigBio's data flexibility and per-record performance comes from storing provided data as PostgreSQL JSON data types. In such a schema, there is no county column to be indexed and grouped by. In our testing, an analogous query on the JSON column takes far to long to be practical. For a searchable store, we use Elastic Search which unfortunately is also not optimal for this type of query. Elastic Search's indexes are tuned for returning the most common occurrences and not exhaustive lists. (See our <a href="https://github.com/iDigBio/idigbio-search-api/wiki#top-n-records">top API endpoints</a> for an example.)</p>
+<p>iDigBio's data flexibility and per-record performance comes from storing provided data as PostgreSQL JSON data types. In such a schema, there is no country column to be indexed and grouped by. In our testing, an analogous query on the JSON column takes far to long to be practical. For a searchable store, we use Elastic Search which unfortunately is also not optimal for this type of query. Elastic Search's indexes are tuned for returning the most common occurrences and not exhaustive lists. (See our <a href="https://github.com/iDigBio/idigbio-search-api/wiki#top-n-records">top API endpoints</a> for an example.)</p>
 <p>Another option might be to get a CSV copy of iDigBio (which is around 32 GB) and write some code in Python or another language to iterate through lines and keep track of unique values. In our experience it is quite expensive to keep track of so many unique values, and adding multi-threading and multi-processing into the mix to manage the computational cost adds a great deal of operational complexity.</p>
 <p>So what to do?</p>
 <h2 id="Apache-Spark">Apache Spark<a class="anchor-link" href="#Apache-Spark">&#182;</a></h2><p>If you have looked in to the big data analytics ecosystem in the past few years, you might have come across <a href="https://hadoop.apache.org/">Apache Hadoop</a>. Traditionally Hadoop has been hard: hard to install, hard to maintain, and hard to write code for. But the computation pattern that Hadoop implements, referred to as <a href="https://en.wikipedia.org/wiki/MapReduce">map-reduce</a>, is a great pattern for doing computations over very large datasets. Hadoop was often the best solution for working with large datasets.</p>
