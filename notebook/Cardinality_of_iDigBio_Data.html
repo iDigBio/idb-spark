@@ -299,7 +299,8 @@ div#notebook {
 <p>iDigBio currently has over 45 million records with more than 200 data fields. Most are described by the <a href="http://rs.tdwg.org/dwc/">Darwin Core</a> and <a href="http://terms.tdwg.org/wiki/Audubon_Core">Audubon Core</a> standards, some are unique to a particular provider's data use, and a handful are used internally by iDigBio. One question that comes up often is "What are the unique values in a field?"</p>
 <p>As it turns out, that is a computationally expensive question to answer for a data set with 45 million records. Considering the <a href="http://rs.tdwg.org/dwc/terms/#country">dwc:country</a> field, your first thought might be to write a SQL query like:</p>
 
-<pre><code>SELECT country, count(*) FROM all_idigbio GROUP BY country;
+<pre><code>SELECT country, count(*) 
+FROM all_idigbio GROUP BY country;
 
 </code></pre>
 <p>iDigBio's data flexibility and per-record performance comes from storing provided data as PostgreSQL JSON data types. In such a schema, there is no county column to be indexed and grouped by. In our testing, an analogous query on the JSON column takes far to long to be practical. For a searchable store, we use Elastic Search which unfortunately is also not optimal for this type of query. Elastic Search's indexes are tuned for returning the most common occurrences and not exhaustive lists. (See our <a href="https://github.com/iDigBio/idigbio-search-api/wiki#top-n-records">top API endpoints</a> for an example.)</p>
@@ -326,25 +327,32 @@ div#notebook {
 </div>
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
-<div class="highlight"><pre><span class="n">fn</span> <span class="o">=</span> <span class="s">&quot;data/{0}/occurrence{1}.csv&quot;</span><span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">recordset</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
+<div class="highlight"><pre><span class="n">fn</span> <span class="o">=</span> <span class="s">&quot;data/{0}/occurrence{1}.csv&quot;</span>
+     <span class="o">.</span><span class="n">format</span><span class="p">(</span><span class="n">recordset</span><span class="p">,</span> <span class="n">raw</span><span class="p">)</span>
 <span class="n">sc</span> <span class="o">=</span> <span class="n">SparkContext</span><span class="p">(</span><span class="n">appName</span><span class="o">=</span><span class="s">&quot;UniqueCSVline&quot;</span><span class="p">)</span>
 
-<span class="c"># Create a Resilient Distributed Dataset (RDD) containing a python dictionary</span>
-<span class="c"># of values for each record from the CSV of all iDigBio data and cache the </span>
-<span class="c"># RDD to memory</span>
+<span class="c"># Create a Resilient Distributed Dataset (RDD) </span>
+<span class="c"># containing a python dictionary of values for</span>
+<span class="c"># each record from the CSV of all iDigBio data</span>
+<span class="c"># and cache the RDD to memory</span>
 <span class="n">records</span> <span class="o">=</span> <span class="n">sc</span><span class="o">.</span><span class="n">textFile</span><span class="p">(</span><span class="n">fn</span><span class="p">)</span>
-<span class="n">parsed</span> <span class="o">=</span> <span class="n">records</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="n">parse</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&quot;utf8&quot;</span><span class="p">),</span> <span class="n">headers</span><span class="p">)</span> <span class="p">)</span>
+<span class="n">parsed</span> <span class="o">=</span> <span class="n">records</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> 
+                     <span class="n">parse</span><span class="p">(</span><span class="n">x</span><span class="o">.</span><span class="n">encode</span><span class="p">(</span><span class="s">&quot;utf8&quot;</span><span class="p">),</span> 
+                     <span class="n">headers</span><span class="p">)</span> <span class="p">)</span>
 <span class="n">parsed</span><span class="o">.</span><span class="n">cache</span><span class="p">()</span>
 
-<span class="c"># For each field we want the unique values of, apply the map-reduce strategy</span>
-<span class="c"># to find all the unique values</span>
+<span class="c"># For each field we want the unique values of,</span>
+<span class="c"># apply the map-reduce strategy to find all the</span>
+<span class="c"># unique values</span>
 <span class="k">for</span> <span class="n">field</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">:</span>
     <span class="n">counts</span> <span class="o">=</span> <span class="n">parsed</span><span class="o">.</span><span class="n">map</span><span class="p">(</span><span class="k">lambda</span> <span class="n">x</span><span class="p">:</span> <span class="p">(</span><span class="n">x</span><span class="p">[</span><span class="n">field</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
     <span class="n">totals</span> <span class="o">=</span> <span class="n">counts</span><span class="o">.</span><span class="n">reduceByKey</span><span class="p">(</span><span class="n">add</span><span class="p">)</span>
 
-    <span class="c"># Collect all the results on one node and write them to a CSV file</span>
+    <span class="c"># Collect all the results on one node and </span>
+    <span class="c"># write them to a CSV file</span>
     <span class="nb">iter</span> <span class="o">=</span> <span class="n">totals</span><span class="o">.</span><span class="n">_jrdd</span><span class="o">.</span><span class="n">toLocalIterator</span><span class="p">()</span>
-    <span class="n">output</span> <span class="o">=</span> <span class="n">totals</span><span class="o">.</span><span class="n">_collect_iterator_through_file</span><span class="p">(</span><span class="nb">iter</span><span class="p">)</span>
+    <span class="n">output</span> <span class="o">=</span> <span class="n">totals</span><span class="o">.</span>
+             <span class="n">_collect_iterator_through_file</span><span class="p">(</span><span class="nb">iter</span><span class="p">)</span>
     <span class="k">with</span> <span class="nb">open</span><span class="p">(</span><span class="n">out_fn</span><span class="p">,</span> <span class="s">&quot;wb&quot;</span><span class="p">)</span> <span class="k">as</span> <span class="n">f</span><span class="p">:</span>
         <span class="n">csvwriter</span> <span class="o">=</span> <span class="n">unicodecsv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">f</span><span class="p">,</span> <span class="s">&quot;excel&quot;</span><span class="p">)</span>
         <span class="k">for</span> <span class="p">(</span><span class="n">word</span><span class="p">,</span> <span class="n">count</span><span class="p">)</span> <span class="ow">in</span> <span class="n">output</span><span class="p">:</span>
@@ -361,7 +369,7 @@ div#notebook {
 <div class="text_cell_render border-box-sizing rendered_html">
 <p>This still takes a while to run since it loops over each field. To do the 32 GB data set containing all data as indexed in <a href="https://www.elastic.co/products/elasticsearch">Elastic Search</a> and served in the portal, it loops about 75 times in a little over 2 hours with translates to about 750,000 records per second. For the raw data as originally provided to us, there are over 200 fields and that takes closer to 8 hours. Much of that time, perhaps as much as 25%, is the inefficient but convenient way we chose to write the results to CSV. Our code is nowhere near optimal and this is just a test cluster. Spark scales really well and we have about 275 servers here at the Advanced Computing and Information Systems Lab (<a href="https://www.acis.ufl.edu/">ACIS</a>) <a href="https://www.acis.ufl.edu/research/facilities">machine room</a>.</p>
 <h2 id="Preliminary-characterization">Preliminary characterization<a class="anchor-link" href="#Preliminary-characterization">&#182;</a></h2><p>We made Python <a href="http://pandas.pydata.org/">Pandas</a> data frames by importing those text files into this <a href="http://ipython.org/notebook.html">iPython notebook</a>. For some initial analysis we wanted to look at how many unique values there were, the cardinality, of each of the fields in the indexed data. Not all the fields were interesting. Many were provided by only one collection, some fields are designed to be unique, etc. So we trimmed off fields where more than 95% of the records had unique values and fields that had fewer than 100 unique values.</p>
-<p>The result is a bar graph of how many unique values are present in iDigBio for about 55 of the indexed fields:</p>
+<p>The result is a bar graph of how many unique values are present in iDigBio for about 55 of the indexed fields: (You can view this full-size by right-clicking on the image and choosing "View Image".)</p>
 
 </div>
 </div>
@@ -4038,7 +4046,7 @@ oDDAEhEREZFBYYAlIiIiIoPCAEtEREREBoUBloiIiIgMyv8DoabfDk2e7wEAAAAASUVORK5CYII=
 <div class="inner_cell">
 <div class="text_cell_render border-box-sizing rendered_html">
 <h3 id="Footnote">Footnote<a class="anchor-link" href="#Footnote">&#182;</a></h3><p>This blog post was written from an iPython Notebook. You can <a href="https://github.com/iDigBio/idb-spark/blob/master/notebook/Cardinality_of_iDigBio_Data.ipynb">view the notebook through Github</a>, clone or fork the <a href="https://github.com/iDigBio/idb-spark/">github repository</a> containing the notebook and Spark code, or look at the code in-line by clicking the button below.</p>
-<p>If you want to play with this notebook without figuring out Spark, you can get a .zip file containing <a href="http://s.idigbio.org/idigbio-static-downloads/unique_idigbio_all_2015_08_25.zip">all the cleaned unique values in each field</a> (5 GB) or the <a href="http://s.idigbio.org/idigbio-static-downloads/unique_idigbio_all_raw_2015_08_25.zip">raw data</a> (3 GB) in iDigBio. Just extract it in the directory after you clone the Github repository.</p>
+<p>If you want to play with this notebook without figuring out Spark, you can get a .zip file containing all the <a href="http://s.idigbio.org/idigbio-static-downloads/unique_idigbio_all_2015_08_25.zip">cleaned unique values in each field</a> (5 GB) or the <a href="http://s.idigbio.org/idigbio-static-downloads/unique_idigbio_all_raw_2015_08_25.zip">raw unique values</a> (3 GB) in iDigBio. Just extract it in the directory after you clone the Github repository. The <a href="http://s.idigbio.org/idigbio-static-downloads/idigbio_all_2015_08_25.zip">full iDigBio dump</a> (20 GB) used to generate these values is also availible.</p>
 
 </div>
 </div>
