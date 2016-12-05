@@ -1,3 +1,4 @@
+import sys
 import re
 
 from pyspark import SparkContext, SQLContext
@@ -11,11 +12,24 @@ sqlContext = SQLContext(sc)
 idb_df_version = "20161119"  # Hardcoded version of the idb parquet to use
 df = sqlContext.read.load("/guoda/data/idigbio-{0}.parquet".format(idb_df_version))
 
-fields = ["stateprovince", "specificepithet", "data.dwc:specificepithet"]
-fields = ["data.dwc:specificepithet"]
+#df = adf.select(adf["data.dwc:specificepithet"], adf["data.dwc:genus"])
+
+field_set = set()
+for s in df.schema:
+    if not str(s.dataType).startswith("StructType"):
+        field_set.add(s.name)
+#    else:
+#        for sub in s.dataType:
+#            field_set.add(".".join([s.name, sub.name]))
+
+#field_set = ["dwc:specificepithet", "dwc:genus"]
+#field_set = ["stateprovince", "specificepithet", "data.dwc:specificepithet"]
+#field_set = ["data.dwc:specificepithet"]
+
+field_set = list(field_set)[0:10]
 
 p = re.compile('[\W_]+')
-for field in fields:
+for field in field_set:
     slug = p.sub("_", field)
     output_fn = "idigbio-{0}-unique-{1}".format(idb_df_version, slug)
     (df
@@ -28,3 +42,4 @@ for field in fields:
      .save("/outputs/{0}.csv".format(output_fn))
     )
 
+sys.exit(0)
