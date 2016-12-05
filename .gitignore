@@ -4,3 +4,5 @@ data/*
 out*
 *.out
 *.csv
+metastore_db
+derby.log
