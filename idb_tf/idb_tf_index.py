@@ -1,3 +1,4 @@
+import sys
 from pyspark import SparkContext, SQLContext
 import pyspark.sql.functions as sql
 import pyspark.sql.types as types
@@ -10,7 +11,7 @@ sc = SparkContext(appName="IDBTF")
 sqlContext = SQLContext(sc)
 
 idb_df_version = "20161119"
-idb_df = sqlContext.read.load("/guoda/data/idigbio-{0}-100k.parquet"
+idb_df = sqlContext.read.load("/guoda/data/idigbio-{0}.parquet"
                               .format(idb_df_version))
 
 
@@ -55,5 +56,8 @@ udf_tokenize = sql.udf(tokenize, types.ArrayType(types.StringType()))
 )
 
 
-# 4:45 on mesos1 with 32 cores
-# time HADOOP_USER_NAME=hdfs spark-submit --master mesos://mesos01.acis.ufl.edu:5050 --executor-memory 20G --driver-memory 10G --total-executor-cores 32 idb_subset.py
+# 4:09 on mesos1 with 96 cores
+#time HADOOP_USER_NAME=hdfs spark-submit --master mesos://mesos01.acis.ufl.edu:5050 --executor-memory 20G --driver-memory 10G --total-executor-cores 96 idb_tf_index.py
+
+# still hangs
+sys.exit()
