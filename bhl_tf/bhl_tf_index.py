@@ -36,7 +36,7 @@ udf_tokenize = sql.udf(tokenize, types.ArrayType(types.StringType()))
 
 
 (bhl_df
-    .withColumn("tokens", udf_tokenize(sql.column("ocr_text")))
+    .withColumn("tokens", udf_tokenize(sql.column("ocrtext")))
     .select(sql.column("itemid"),
             sql.explode(sql.column("tokens")).alias("token")
            )
